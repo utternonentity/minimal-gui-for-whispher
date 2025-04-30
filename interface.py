@@ -83,5 +83,5 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate("MainWindow", "Транскрибация аудио УБК"))
+        MainWindow.setWindowTitle(_translate("MainWindow", "Транскрибация аудио"))
         self.choose_file_bt.setText(_translate("MainWindow", "Выбор аудиозаписи"))
