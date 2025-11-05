@@ -1,11 +1,14 @@
+import math
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 from interface import Ui_MainWindow
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import QUrl
-from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
+from PyQt5.QtWidgets import QFileDialog
 from docx import Document
 from pydub import AudioSegment
 
@@ -43,8 +46,8 @@ class ProgressHandler(QtCore.QThread):
 
             if segments_count == 0:
                 raise ValueError("Не удалось разбить аудио на сегменты")
-
-            model = whisper.load_model("large-v3")
+            
+            model = whisper.load_model("large-v3", device="cpu")
 
             for step in range(segments_count):
                 audio_path = self.output_folder / f"segment_{step + 1}.wav"
@@ -88,6 +91,9 @@ class ProgressHandler(QtCore.QThread):
             ])
         except Exception as exc:  # pragma: no cover - safety net for UI thread
             self.mySignal.emit(["transcription_failed", str(exc)])
+        finally:
+            if self.output_folder.exists():
+                shutil.rmtree(self.output_folder, ignore_errors=True)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -102,11 +108,24 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.choose_file_bt.clicked.connect(self.transcribe_audio)
 
     def transcribe_audio(self):
+        supported_formats = [
+            "*.wav",
+            "*.mp3",
+            "*.flac",
+            "*.m4a",
+            "*.ogg",
+            "*.aac",
+            "*.wma",
+            "*.mp4",
+            "*.mkv",
+            "*.mov",
+        ]
+
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Выберите аудиофайл",
+            "Выберите аудио- или видеофайл",
             "",
-            "Audio Files (*.wav *.mp3 *.flac *.m4a *.ogg)"
+            f"Поддерживаемые файлы ({' '.join(supported_formats)})"
         )
 
         if not file_path:
@@ -114,12 +133,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         input_path = Path(file_path)
         self.ui.file_name_value.setText(input_path.name)
+        self.ui.file_path_value.setText(str(input_path))
+        self.ui.file_details_value.setText(self.describe_file(input_path))
         self.ui.status_label.setText("Файл загружен, начинаем обработку…")
         self.ui.transcription_preview.clear()
         self.ui.progressBar.setValue(0)
         self.ui.choose_file_bt.setEnabled(False)
 
-        output_folder_path = input_path.parent / "output_segments"
+        output_folder_path = Path(tempfile.mkdtemp(prefix="whisper_segments_"))
         output_text_file = input_path.with_name(f"{input_path.stem}_transcript.txt")
         output_docx_file = input_path.with_name(f"{input_path.stem}_report.docx")
 
@@ -154,6 +175,29 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ui.status_label.setText(f"Ошибка: {error_message}")
             self.ui.choose_file_bt.setEnabled(True)
             QtWidgets.QMessageBox.critical(self, "Ошибка", error_message)
+
+    @staticmethod
+    def describe_file(file_path: Path) -> str:
+        try:
+            size_bytes = file_path.stat().st_size
+        except OSError:
+            size_bytes = 0
+
+        suffix = file_path.suffix[1:].upper() if file_path.suffix else ""
+        readable_size = MainWindow.format_size(size_bytes)
+        if suffix:
+            return f"{suffix} • {readable_size}"
+        return readable_size
+
+    @staticmethod
+    def format_size(size_bytes: int) -> str:
+        if size_bytes <= 0:
+            return "0 Б"
+
+        units = ["Б", "КБ", "МБ", "ГБ", "ТБ"]
+        digit_groups = min(int(math.log(size_bytes, 1024)), len(units) - 1)
+        formatted = size_bytes / float(1024 ** digit_groups)
+        return f"{formatted:.1f} {units[digit_groups]}"
 
     def play_completion_sound(self):
         sound_path = Path(__file__).resolve().parent / "sound" / "1.mp3"
