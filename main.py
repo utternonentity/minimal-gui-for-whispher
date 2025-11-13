@@ -2,6 +2,7 @@ import math
 import shutil
 import sys
 import tempfile
+from importlib import resources
 from pathlib import Path
 
 from interface import Ui_MainWindow
@@ -104,8 +105,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.media_player = QMediaPlayer()
         self.ui.progressBar.setValue(0)
+        self.default_status_text = self.ui.status_label.text()
+        self.preview_placeholder = self.ui.transcription_preview.placeholderText()
 
         self.ui.choose_file_bt.clicked.connect(self.transcribe_audio)
+        self.reset_interface()
 
     def transcribe_audio(self):
         supported_formats = [
@@ -119,6 +123,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "*.mp4",
             "*.mkv",
             "*.mov",
+            "*.avi",
         ]
 
         file_path, _ = QFileDialog.getOpenFileName(
@@ -137,6 +142,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ui.file_details_value.setText(self.describe_file(input_path))
         self.ui.status_label.setText("Файл загружен, начинаем обработку…")
         self.ui.transcription_preview.clear()
+        self.ui.transcription_preview.setPlaceholderText(self.preview_placeholder)
         self.ui.progressBar.setValue(0)
         self.ui.choose_file_bt.setEnabled(False)
 
@@ -151,6 +157,7 @@ class MainWindow(QtWidgets.QMainWindow):
             output_docx_file,
         )
         self.transcriber_thread.mySignal.connect(self.signal_handler)
+        self.transcriber_thread.finished.connect(self.transcriber_thread.deleteLater)
         self.transcriber_thread.start()
 
     def signal_handler(self, value):
@@ -165,7 +172,9 @@ class MainWindow(QtWidgets.QMainWindow):
             _, final_text, txt_path, docx_path = value
             self.ui.progressBar.setValue(100)
             self.ui.status_label.setText("Готово! Отчёт сохранён.")
-            self.ui.transcription_preview.setPlainText(final_text if final_text else "Речь не была распознана.")
+            display_text = final_text if final_text else "Речь не была распознана."
+            self.ui.transcription_preview.setPlainText(display_text)
+            self.ui.transcription_preview.setPlaceholderText("")
             self.ui.choose_file_bt.setEnabled(True)
             self.play_completion_sound()
             self.show_completion_toast(txt_path, docx_path)
@@ -175,6 +184,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ui.status_label.setText(f"Ошибка: {error_message}")
             self.ui.choose_file_bt.setEnabled(True)
             QtWidgets.QMessageBox.critical(self, "Ошибка", error_message)
+
+    def reset_interface(self):
+        self.ui.file_name_value.setText("Файл не выбран")
+        self.ui.file_path_value.setText("—")
+        self.ui.file_details_value.setText("—")
+        self.ui.status_label.setText(self.default_status_text)
+        self.ui.progressBar.setValue(0)
+        self.ui.transcription_preview.clear()
+        self.ui.transcription_preview.setPlaceholderText(self.preview_placeholder)
 
     @staticmethod
     def describe_file(file_path: Path) -> str:
@@ -200,11 +218,26 @@ class MainWindow(QtWidgets.QMainWindow):
         return f"{formatted:.1f} {units[digit_groups]}"
 
     def play_completion_sound(self):
-        sound_path = Path(__file__).resolve().parent / "sound" / "1.mp3"
-        if sound_path.exists():
-            media_content = QMediaContent(QUrl.fromLocalFile(str(sound_path)))
+        local_sound = Path(__file__).resolve().parent / "sound" / "1.mp3"
+        if local_sound.exists():
+            media_content = QMediaContent(QUrl.fromLocalFile(str(local_sound)))
             self.media_player.setMedia(media_content)
             self.media_player.play()
+            return
+
+        try:
+            package_sound = resources.files("sound") / "1.mp3"
+        except (ModuleNotFoundError, AttributeError):
+            package_sound = None
+
+        if package_sound is not None:
+            try:
+                with resources.as_file(package_sound) as sound_path:
+                    media_content = QMediaContent(QUrl.fromLocalFile(str(sound_path)))
+                    self.media_player.setMedia(media_content)
+                    self.media_player.play()
+            except FileNotFoundError:
+                pass
 
     def show_completion_toast(self, txt_path: str, docx_path: str):
         message = (
@@ -213,8 +246,12 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Транскрибация завершена", message)
 
 
-if __name__ == "__main__":
+def main() -> int:
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    sys.exit(app.exec_())
+    return app.exec_()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -16,9 +16,22 @@ class Ui_MainWindow(object):
 
         self.mainLayout = QtWidgets.QVBoxLayout(self.centralwidget)
         self.mainLayout.setContentsMargins(32, 32, 32, 32)
-        self.mainLayout.setSpacing(24)
+        self.mainLayout.setSpacing(0)
 
-        self.card = QtWidgets.QFrame(self.centralwidget)
+        self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
+        self.scrollArea.setObjectName("scrollArea")
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollArea.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.scrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.scrollArea.setStyleSheet("QScrollArea{border: none;}")
+
+        self.scrollWidget = QtWidgets.QWidget()
+        self.scrollWidget.setObjectName("scrollWidget")
+        self.scrollLayout = QtWidgets.QVBoxLayout(self.scrollWidget)
+        self.scrollLayout.setContentsMargins(0, 0, 0, 0)
+        self.scrollLayout.setSpacing(24)
+
+        self.card = QtWidgets.QFrame(self.scrollWidget)
         self.card.setObjectName("card")
         self.card.setStyleSheet(
             "#card{"
@@ -224,7 +237,11 @@ class Ui_MainWindow(object):
 
         self.cardLayout.addStretch(1)
 
-        self.mainLayout.addWidget(self.card)
+        self.scrollLayout.addWidget(self.card)
+        self.scrollLayout.addStretch(1)
+        self.scrollArea.setWidget(self.scrollWidget)
+
+        self.mainLayout.addWidget(self.scrollArea)
 
         MainWindow.setCentralWidget(self.centralwidget)
 

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minimal-gui-for-whispher"
+version = "1.0.0"
+description = "Минимальное настольное приложение для транскрибации аудио с помощью OpenAI Whisper"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{name = "Minimal GUI Maintainers"}]
+classifiers = [
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "PyQt5>=5.15,<6",
+    "python-docx>=1.1",
+    "pydub>=0.25",
+    "openai-whisper>=20231117",
+    "torch>=2.0",
+]
+
+[project.scripts]
+whisper-gui = "main:main"
+
+[tool.setuptools]
+py-modules = ["main", "interface"]
+packages = ["sound"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+sound = ["*.mp3"]
